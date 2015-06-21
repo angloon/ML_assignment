@@ -1,0 +1,114 @@
+---
+title: "Practical Machine Learning Assignment Writeup"
+output: html_document
+fontsize: 10pt
+---
+Author: angloon
+
+
+```{r echo=FALSE, results='hide'}
+library(knitr)
+library(caret)
+```
+
+## Executive summary
+
+This analysis aims to predict the activity quality of bicep curls using the data collected from activity monitors. 
+
+
+## Load data and set seed
+
+Clean up while loading the csv, and set the seed.
+
+
+```{r}
+set.seed(100)
+orig_testing=read.csv("pml-testing.csv",na.string=c("",'$DIV/0','#DIV/0!','NA'))
+orig_training=read.csv("pml-training.csv", na.string=c("",'$DIV/0','#DIV/0!','NA'))
+```
+
+
+## Data analysis and exploration -
+
+Let's look at the data columns in the dataset - seems that the first few columns except subject name are not useful and to be removed. Leaving names will allow better prediction for the test set, though maybe make the model not as generalizable for new subjects. 
+
+
+```{r}
+training=orig_training[,-c(1,3:6)]
+testing=orig_testing[,-c(1,3:6)]
+```
+
+
+Filter out variables with xyz - From reading the paper, observe that quality of movement is what they want to measure. The feature extraction from the xyz data have been done by the authors to yield roll, pitch and yaw. Also the sliding time window from which the features are extracted from is 2.5 seconds, so the rows with time window that are close can be compared (accounting for speed/time variations in exercise execution).
+
+
+```{r}
+training=training[-c(32:40,55:63,108:116,146:154)]
+testing=testing[-c(32:40,55:63,108:116,146:154)]
+```
+
+
+Filter out columns which are mostly NA
+
+
+```{r}
+column_na=colSums(is.na(training))>18000
+training=training[,!column_na]
+testing=testing[,!column_na]
+```
+
+
+## Model selection
+
+I used random forest as it is more suited for getting a better prediction outcome.
+
+1. Train control arguments
+
+I want cross validation, number=4 (default 10), select best performing
+
+
+```{r}
+my_traincontrol=trainControl(method="cv",number=4,selectionFunction = "best")
+```
+
+Run training of classe against all predictors with random forest and the traincontrol options we set earlier.
+
+Preview of how my algorithm will perform - 
+Further split training set into cv_training and cv_test to test model performance. See that the final model estimates the out of sample error from the OOB (out of bag) estimate below.
+
+
+```{r cache=TRUE}
+cv_slice=createDataPartition(y=training$classe, times=1, p=0.6, list=FALSE) 
+cv_training= training[cv_slice,]
+cv_testing= training[-cv_slice,]
+rf_fit=train(classe~., method="rf",data=cv_training, traincontrol=my_traincontrol)
+rf_fit$finalModel
+```
+
+
+Now I try prediction on the cv_testing set to see how it does. Here we see the out of sample error rate on the cv_testing data, which is a good estimate of its true value - Accuracy and confidence interval looks very good, p-value is close to 0.
+
+
+```{r}
+predictions=predict(rf_fit,newdata=cv_testing)
+confusionMatrix(predictions,cv_testing$classe)
+```
+
+
+Run model against testing data provided
+
+
+```{r}
+predictions=predict(rf_fit,newdata=testing)
+
+```
+
+
+## Citations
+
+The dataset used in this assignment is from
+
+Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013.
+
+Read more: http://groupware.les.inf.puc-rio.br/har#ixzz3dbBmKLRF
+
