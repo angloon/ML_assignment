@@ -95,12 +95,21 @@ confusionMatrix(predictions,cv_testing$classe)
 ```
 
 
-Run model against testing data provided
+Run model against testing data provided, use the function provided to make the 20 files for submission.
 
+```{r echo=FALSE}
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+```
 
 ```{r}
 predictions=predict(rf_fit,newdata=testing)
-
+pml_write_files(predictions)
 ```
 
 
